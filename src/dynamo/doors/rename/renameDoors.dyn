@@ -1,0 +1,120 @@
+{
+  "Uuid": "bdf28bfe-28f2-4558-a24a-37225912995a",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "renameDoors",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nclr.AddReference(\"RevitServices\")\r\n\r\nimport Autodesk\r\nimport RevitServices\r\n\r\nfrom Autodesk.Revit.DB import *\r\nfrom RevitServices.Persistence import DocumentManager\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nclr.AddReference(\"RevitServices\")\r\n\r\ndoc = DocumentManager.Instance.CurrentDBDocument\r\n\r\ncollector = FilteredElementCollector(doc)\r\ndoors = collector.OfCategory(BuiltInCategory.OST_Doors).WhereElementIsNotElementType().ToElements()\r\nex = []\r\nerr = []\r\n\r\n# for hardcoded parameters\r\nparamToLookForName = 'NTI_RoomAssociation'\r\nparamToChangeName = 'Mark'\r\npintVerbose = 1 # set to 0 for not printing corrected door names\r\n\r\n# for Python Script  box inputs\r\n# paramToLookForName = IN[0]\r\n# paramToChangeName = IN[1]\r\n\r\ndef getNextLetter(position):\r\n    if position > 25:  # from A to Z there are 25 chars\r\n        return 'A' + getNextLetter(position - 26)\r\n    return chr(ord('A') + position)\r\n\r\nroomOptions = []\r\nroomsHandled = []\r\n\r\ndef addRoomToOptions(room):\r\n    try:\r\n        index = roomsHandled.index(room)\r\n        nextLetterPosition = roomOptions[index][1] + 1\r\n        roomOptions[index][1] = nextLetterPosition\r\n        return getNextLetter(nextLetterPosition)\r\n    except ValueError:\r\n        roomOptions.Add([room, 0])\r\n        roomsHandled.Add(room)\r\n        return getNextLetter(0)\r\n\r\n\r\n# define a transaction variable and describe the transaction\r\nt = Transaction(doc, 'rename all door names based on room they belong to')\r\n\r\n# start a transaction in the Revit database\r\nt.Start()\r\n\r\nfor door in doors:\r\n    paramToLookFor = door.LookupParameter(paramToLookForName)\r\n    paramToChange = door.LookupParameter(paramToChangeName)\r\n    if paramToLookFor:\r\n        paramToLookForValue = paramToLookFor.AsString()\r\n        if paramToLookForValue:\r\n            nextLetter = addRoomToOptions(paramToLookForValue)\r\n            if nextLetter and paramToChange and not paramToChange.IsReadOnly:\r\n            \tif pintVerbose:\r\n                \tex.append(paramToLookForValue + \" ------ \" + nextLetter)\r\n                paramToChange.Set(paramToLookForValue + \" - \" + nextLetter)\r\n            else:\r\n                err.append(\"Error with \" + door.Name + \". Param to be changed or letter can't be calculated.\")\r\n        else:\r\n            err.append(\"Error with \" + door.Name + \". Param \" + paramToLookForName + \" not valid.\")\r\n    else:\r\n        err.append(\"Error with \" + door.Name + \". Param \" + paramToLookForName + \" not found.\")\r\n\r\n# once 1st full iteration is done, we do want to cleanup the ones only having one element. those would be named only by room name\r\nfor door in doors:\r\n    paramToLookFor = door.LookupParameter(paramToLookForName)\r\n    paramToChange = door.LookupParameter(paramToChangeName)\r\n    if paramToLookFor:\r\n        paramToLookForValue = paramToLookFor.AsString()\r\n        if paramToLookForValue:\r\n            try:\r\n                paramToLookForValue = paramToLookFor.AsString()\r\n                index = roomsHandled.index(paramToLookForValue)\r\n                value = roomOptions[index][1]\r\n                if value == 0 and paramToChange and not paramToChange.IsReadOnly:\r\n                \tparamToChange.Set(paramToLookForValue)\r\n            except ValueError:\r\n                err.append(\"Error with \" + door.Name + \". Couldn't rename only door in a room\")\r\n\r\n# commit the transaction to the Revit database\r\nt.Commit()\r\n\r\nif err:\r\n    ex.append(err)\r\n\r\nOUT = ex\r\n",
+      "VariableInputPorts": true,
+      "Id": "223b3c28557042a3806cfdad02b59556",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "cf64d7345d754686bb92efb829e3d8ab",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded IronPython script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "NodeType": "ExtensionNode",
+      "Id": "ca1585652bca4403996546f7edc5b0d8",
+      "Inputs": [
+        {
+          "Id": "849e33db588e4e50913bc6b34dc8a49d",
+          "Name": "",
+          "Description": "Node to evaluate.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "5d9594ed3d984f68860a5844ba229f4a",
+          "Name": "",
+          "Description": "Watch contents.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualize the output of node."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "cf64d7345d754686bb92efb829e3d8ab",
+      "End": "849e33db588e4e50913bc6b34dc8a49d",
+      "Id": "4c2f82013d644bb3be4b24c5fb7711c9"
+    }
+  ],
+  "Dependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.0.1.5055",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Python Script",
+        "Id": "223b3c28557042a3806cfdad02b59556",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 606.80000000000007,
+        "Y": 162.39999999999995
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Watch",
+        "Id": "ca1585652bca4403996546f7edc5b0d8",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 869.19999999999993,
+        "Y": 128.79999999999998
+      }
+    ],
+    "Annotations": [],
+    "X": -412.80000000000007,
+    "Y": -9.5999999999999091,
+    "Zoom": 1.0
+  }
+}
